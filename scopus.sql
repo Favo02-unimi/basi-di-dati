@@ -1,7 +1,3 @@
--- esercizio A: derivare lo schema ER del db scopus4ds (reverse engineering)
-
--- esercizio B: svolgere i seguenti esercizi di algebra relazionale e SQL
-
 -- 1. conta il numero di pubblicazioni nel db
 SELECT count(*)
 FROM publications.publication
@@ -82,20 +78,113 @@ FROM publications.publication
 WHERE p.pubname = 'information and computer security'
 AND p.citedby > (select avg from average)
 
+-- 9. trovare le pubblicazioni con il maggior numero di keyword associate
+WITH max_keywords AS (
+  SELECT k.pubid, count(*) AS count
+  FROM publications.keyword AS k
+  GROUP BY k.pubid
+)
+SELECT mk.pubid
+FROM max_keywords AS mk
+HAVING mk.count = max(mk.count)
 
--- trovare le pubblicazioni con il maggior numero di keyword associate
+-- 10. trovare tutte le expertise da cui discende conceptual design
+WITH RECURSIVE parents AS (
 
--- trovare tutte le expertise da cui discende conceptual design
+  -- non-recursive term
+  SELECT e1.parent_field
+  FROM publications.expertise AS e1
+  WHERE e1.field = 'conceptual design'
 
--- ulteriori esercizi
+    UNION
 
--- trovare le pubblicazioni X con citazioni superiori alla media considerando le pubblicazioni della rivista di X
--- inefficiente
+  -- recursive term
+  SELECT e2.parent_field
+  FROM publications.expertise AS e2
+  INNER JOIN parents AS p
+  ON p.parent_field = e2.field
 
--- trovare i co-autori di montanelli stefano (autori di pubblicazioni in cui montanelli stefano è autore)
+)
+SELECT * FROM parents;
 
--- trovare le keyword usate solo sulla rivista 'information and computer security'
+-- 11. trovare le pubblicazioni X con citazioni superiori alla media considerando le pubblicazioni della rivista di X
+WITH avg_cit AS (
+  SELECT p.pubname, avg(p.citedby) AS avg
+  FROM publications.publication AS p
+  GROUP BY p.pubname
+)
+SELECT p.id
+FROM publications.publication AS p
+WHERE p.citedby > (
+  SELECT avg
+  FROM avg_cit AS ac
+  WHERE ac.pubname = p.pubname
+)
 
--- Trovare la keyword usata il maggior numero di volte
+WITH avg_cit AS (
+  SELECT p.pubname, avg(p.citedby) AS avg
+  FROM publications.publication AS p
+  GROUP BY p.pubname
+)
+SELECT p.id
+FROM publications.publication AS p
+INNER JOIN avg_cit AS ac ON ac.pubname = p.pubname
+WHERE p.citedby > ac.avg
 
--- trovare gli autori che non pubblicano con persone appartenenti alla medesima affiliazione
+-- 12. trovare i co-autori di montanelli stefano (autori di pubblicazioni in cui montanelli stefano è autore)
+SELECT DISTINCT authid
+FROM publications.pub_author AS pa
+INNER JOIN publications.author AS a
+WHERE a2.name != 'Stefano'
+AND a2.surname != 'Montanelli'
+AND EXISTS (
+  SELECT *
+  FROM publications.pub_author AS pa2
+  INNER JOIN publications.author AS a2
+  WHERE  pa.pubid = pa2.pubid
+  AND a2.name = 'Stefano'
+  AND a2.surname = 'Montanelli'
+)
+
+SELECT DISTINCT a2.*
+FROM publications.author AS a1
+INNER JOIN publications.pub_author AS pa1 ON a1.authid = pa1.authid 
+INNER JOIN publications.pub_author pa2 ON pa1.pubid = pa2.pubid 
+INNER JOIN publications.author a2 ON pa2.authid = a2.authid
+AND a1.name != 'Stefano' AND a1.surname != 'Montanelli'
+AND a2.name = 'Stefano' AND a2.surname = 'Montanelli'
+
+-- 13. trovare le keyword usate solo sulla rivista 'information and computer security'
+SELECT k.keyword
+FROM publications.keyword AS k
+WHERE NOT EXISTS (
+	SELECT *
+	FROM publications.keyword AS k2
+  INNER JOIN publications.publication AS p on p.id = k.pubid
+	WHERE k2.keyword = k.keyword
+  AND p.pubname != 'information and computer security'
+)
+
+-- 14. trovare la keyword usata il maggior numero di volte
+WITH keyword_count AS (
+  SELECT keyword, count(*) AS count
+  FROM publications.keyword AS k
+  GROUP BY keyword
+), max_keyword AS (
+  SELECT max(kc.count) AS max
+  FROM keyword_count AS kc
+)
+SELECT kc2.keyword
+FROM keyword_count AS kc2
+WHERE kc2.count = (SELECT mk.max FROM max_keyword AS mk)
+
+-- 15. trovare gli autori che non pubblicano con persone appartenenti alla medesima affiliazione
+SELECT pa.authid
+FROM publications.pub_author AS pa
+WHERE NOT EXISTS (
+  SELECT *
+  FROM publications.pub_author AS pa2
+  WHERE pa.pubid = pa2.pubid
+  AND pa.authid != pa2.authid
+  AND pa.afid = pa2.afid
+)
