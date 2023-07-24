@@ -179,7 +179,7 @@ FROM keyword_count AS kc2
 WHERE kc2.count = (SELECT mk.max FROM max_keyword AS mk)
 
 -- 15. trovare gli autori che non pubblicano con persone appartenenti alla medesima affiliazione
-SELECT pa.authid
+SELECT DISTINCT pa.authid
 FROM publications.pub_author AS pa
 WHERE NOT EXISTS (
   SELECT *
